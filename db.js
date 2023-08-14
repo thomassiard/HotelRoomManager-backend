@@ -1,6 +1,8 @@
-import { MongoClient, ServerApiVersion } from "mongodb";
+import { MongoClient } from "mongodb";
+import { ServerApiVersion } from "mongodb";
+
 const uri =
-  "mongodb+srv://admin:admin123@hrm.cwgutlt.mongodb.net/?retryWrites=true&w=majority";
+  "mongodb+srv://admin:korisnik123@hrm.cwgutlt.mongodb.net/?retryWrites=true&w=majority";
 const client = new MongoClient(uri, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
@@ -9,17 +11,15 @@ const client = new MongoClient(uri, {
 
 let db = null;
 
-export default (database) => {
-  return new Promise((resolve, reject) => {
-    if (db && client.connected) {
-      resolve(db);
-    } else {
-      try {
-        db = client.db(database);
-        resolve(db);
-      } catch {
-        (err) => reject(err);
-      }
+export default async function connect(database) {
+  if (!db) {
+    try {
+      await client.connect();
+      db = client.db(database);
+    } catch (err) {
+      console.error("Error connecting to MongoDB:", err);
+      throw err;
     }
-  });
-};
+  }
+  return db;
+}
