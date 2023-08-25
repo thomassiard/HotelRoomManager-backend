@@ -34,19 +34,19 @@ router.get("/", async (req, res) => {
     const pipeline = [
       {
         $lookup: {
-          from: "Room-type", // the collection to join with
-          localField: "room_type.$id", // the field from the input documents
-          foreignField: "_id", // the field from the documents of the "from" collection
-          as: "type_details", // the name of the new array field to add to the input documents
+          from: "Room-type",
+          localField: "room_type.$id",
+          foreignField: "_id",
+          as: "type_details",
         },
       },
       {
-        $unwind: "$type_details", // deconstruct the type_details array field
+        $unwind: "$type_details",
       },
       {
         $project: {
-          _id: 1, // include the _id field
-          room_number: 1, // include the room_number field
+          _id: 1,
+          room_number: 1,
           room_type: "$type_details.name",
           room_price: "$type_details.price_euro",
         },

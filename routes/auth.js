@@ -1,12 +1,12 @@
 import express from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import connect from "../db.js"; // Ovdje importate ispravnu putanju do vašeg db.js
-import crypto from "crypto"; // Dodano za generiranje tajnog ključa
+import connect from "../db.js";
+import crypto from "crypto";
 
 const router = express.Router();
 
-// Generirajte tajni ključ
+// Generiranje tajnog ključa
 const secretKey = crypto.randomBytes(64).toString("hex");
 
 router.post("/register", async (req, res) => {
@@ -36,7 +36,7 @@ router.post("/register", async (req, res) => {
 
     await usersCollection.insertOne(newUser);
 
-    // Generirajte JWT token za novoregistriranog korisnika
+    // Generiranje JWT token za novoregistriranog korisnika
     const token = jwt.sign({ userId: newUser._id }, secretKey, {
       expiresIn: "12h",
     });
@@ -65,7 +65,7 @@ router.post("/login", async (req, res) => {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
-    // Upotrijebite generirani tajni ključ za potpisivanje JWT tokena
+    // Upotreba generiranog tajnog ključa za potpisivanje JWT tokena
     const token = jwt.sign({ userId: user._id }, secretKey, {
       expiresIn: "12h",
     });

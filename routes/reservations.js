@@ -2,25 +2,27 @@ import express from "express";
 import connect from "../db.js";
 import { DBRef } from "mongodb";
 import mongoose from "mongoose";
+import { ObjectId } from "mongodb";
 
 const router = express.Router();
 
 router.post("/", async (req, res) => {
   try {
     const {
-      email, // Dodajte polje za email ili phoneNumber
+      email,
       check_in,
       check_out,
       adults,
       kids,
-      room_number,
+      room_type,
       type_of_payment,
     } = req.body;
 
     const db = await connect("HRM");
     const reservationCollection = db.collection("Reservations");
-    const usersCollection = db.collection("users"); // Dodana referenca na kolekciju "Users"
+    const usersCollection = db.collection("users");
     const roomsCollection = db.collection("Rooms");
+    const room_typeCollection = db.collection("Room-type");
     const method_of_paymentCollection = db.collection("Method-of-payment");
 
     const method_of_payment = await method_of_paymentCollection.findOne({
@@ -31,13 +33,21 @@ router.post("/", async (req, res) => {
       return res.status(404).json({ message: "Method of payment not found" });
     }
 
-    const room = await roomsCollection.findOne({ room_number });
+    const roomtype = await room_typeCollection.findOne({ name: room_type });
 
-    if (!room) {
-      return res.status(404).json({ message: "Room not found" });
+    if (!roomtype) {
+      return res.status(404).json({ message: "Room type not found" });
     }
 
-    const user = await usersCollection.findOne({ email }); // Pronalaženje korisnika prema email adresi
+    const room = await roomsCollection.findOne({
+      "room_type.$id": roomtype._id,
+    });
+
+    if (!room) {
+      return res.status(400).json({ message: "Room not available" });
+    }
+
+    const user = await usersCollection.findOne({ email });
 
     if (!user) {
       return res.status(404).json({ message: "User not found" });
@@ -69,7 +79,7 @@ router.post("/", async (req, res) => {
 router.put("/:reservationId", async (req, res) => {
   try {
     const { reservationId } = req.params;
-    const { check_in, check_out, adults, kids, room_number, type_of_payment } =
+    const { check_in, check_out, adults, kids, room_type, type_of_payment } =
       req.body;
 
     const db = await connect("HRM");
@@ -85,7 +95,7 @@ router.put("/:reservationId", async (req, res) => {
       return res.status(404).json({ message: "Method of payment not found" });
     }
 
-    const room = await roomsCollection.findOne({ room_number });
+    const room = await roomsCollection.findOne({ room_type });
 
     if (!room) {
       return res.status(404).json({ message: "Room not found" });
@@ -116,6 +126,67 @@ router.put("/:reservationId", async (req, res) => {
   } catch (error) {
     console.error("Update reservation error:", error);
     res.status(500).json({ message: "An error occurred" });
+  }
+});
+
+// GET route for retrieving a single reservation by its ObjectId
+router.get("/:reservationId", async (req, res) => {
+  try {
+    const { reservationId } = req.params;
+
+    const db = await connect("HRM");
+    const reservationCollection = db.collection("Reservations");
+
+    const reservation = await reservationCollection.findOne({
+      _id: new ObjectId(reservationId),
+    });
+
+    if (!reservation) {
+      return res.status(404).json({ message: "Reservation not found" });
+    }
+
+    res.json(reservation);
+  } catch (error) {
+    console.error("Get reservation error:", error);
+    res.status(500).json({ message: "An error occurred" });
+  }
+});
+
+// GET ruta za dohvaćanje svih rezervacija
+router.get("/", async (req, res) => {
+  try {
+    const db = await connect("HRM");
+    const reservationCollection = db.collection("Reservations");
+
+    const reservations = await reservationCollection.find({}).toArray();
+
+    res.json(reservations);
+  } catch (error) {
+    console.error("Greška prilikom dohvaćanja rezervacija:", error);
+    res.status(500).json({ message: "Došlo je do pogreške" });
+  }
+});
+
+// DELETE ruta za brisanje jedne rezervacije putem ObjectId-a
+router.delete("/:reservationId", async (req, res) => {
+  try {
+    const { reservationId } = req.params;
+
+    const db = await connect("HRM");
+    const reservationCollection = db.collection("Reservations");
+
+    const deleteResult = await reservationCollection.deleteOne({
+      _id: new ObjectId(reservationId),
+    });
+
+    if (deleteResult.deletedCount === 0) {
+      return res.status(404).json({ message: "Rezervacija nije pronađena" });
+    }
+
+    res.json({ message: "Rezervacija je uspješno izbrisana" });
+  } catch (error) {
+    console.error("Greška prilikom brisanja rezervacije:", error);
+    res.status(500).json({ message: "Došlo je do pogreške" });
   }
 });
 
