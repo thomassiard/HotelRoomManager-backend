@@ -2,8 +2,10 @@ import express from "express";
 import authRoutes from "./routes/auth.js";
 import roomsRoutes from "./routes/rooms.js";
 import reservationsRoutes from "./routes/reservations.js";
+import cors from "cors";
 
 const app = express();
+app.use(cors());
 const port = 3001;
 
 app.use(express.json());

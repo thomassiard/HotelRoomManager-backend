@@ -3,12 +3,13 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import connect from "../db.js";
 import crypto from "crypto";
+import cors from "cors";
 
 const router = express.Router();
 
 // Generiranje tajnog ključa
 const secretKey = crypto.randomBytes(64).toString("hex");
-
+router.use(cors());
 router.post("/register", async (req, res) => {
   try {
     const { fullName, email, phoneNumber, password, confirmPassword } =
