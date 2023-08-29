@@ -3,6 +3,7 @@ import connect from "../db.js";
 import { DBRef } from "mongodb";
 import mongoose from "mongoose";
 import { ObjectId } from "mongodb";
+import moment from "moment";
 
 const router = express.Router();
 
@@ -187,6 +188,54 @@ router.delete("/:reservationId", async (req, res) => {
   } catch (error) {
     console.error("Greška prilikom brisanja rezervacije:", error);
     res.status(500).json({ message: "Došlo je do pogreške" });
+  }
+});
+
+// Dohvat slobodnih soba u određenom razdoblju
+router.get("/available-rooms", async (req, res) => {
+  try {
+    const { checkin, checkout, room_type } = req.query;
+
+    const db = await connect("HRM");
+    const reservationCollection = db.collection("Reservations");
+    const roomsCollection = db.collection("Rooms");
+
+    const checkinDate = moment(checkin);
+    const checkoutDate = moment(checkout);
+
+    const reservations = await reservationCollection.find({
+      $or: [
+        {
+          $and: [
+            { check_in: { $lt: checkinDate.toDate() } },
+            { check_out: { $gt: checkinDate.toDate() } },
+          ],
+        },
+        {
+          $and: [
+            { check_in: { $lt: checkoutDate.toDate() } },
+            { check_out: { $gt: checkoutDate.toDate() } },
+          ],
+        },
+      ],
+      ...(room_type ? { "room_id.$id": new ObjectId(room_type) } : {}),
+    });
+
+    const reservedRoomIds = reservations.map((reservation) =>
+      reservation.room_id.oid.toString()
+    );
+
+    const availableRooms = await roomsCollection
+      .find({
+        ...(room_type ? { _id: new ObjectId(room_type) } : {}),
+        _id: { $nin: reservedRoomIds },
+      })
+      .toArray();
+
+    res.json(availableRooms);
+  } catch (error) {
+    console.error("Error while fetching available rooms:", error);
+    res.status(500).json({ message: "An error occurred" });
   }
 });
 
