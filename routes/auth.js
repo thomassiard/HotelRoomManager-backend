@@ -10,6 +10,24 @@ const router = express.Router();
 // Generiranje tajnog ključa
 const secretKey = crypto.randomBytes(64).toString("hex");
 router.use(cors());
+
+// Middleware za provjeru autentifikacije
+function authMiddleware(req, res, next) {
+  const token = req.header("Authorization");
+
+  if (!token) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  try {
+    const decoded = jwt.verify(token, secretKey);
+    req.user = decoded.userId;
+    next();
+  } catch (error) {
+    return res.status(401).json({ message: "Token is not valid" });
+  }
+}
+
 router.post("/register", async (req, res) => {
   try {
     const { fullName, email, phoneNumber, password, confirmPassword } =
@@ -76,6 +94,11 @@ router.post("/login", async (req, res) => {
     console.error("Login error:", error);
     res.status(500).json({ message: "An error occurred" });
   }
+});
+
+// Primijeni middleware na rutu za welcomepage
+router.get("/welcomepage", authMiddleware, (req, res) => {
+  res.json({ message: "Welcome to the welcomepage" });
 });
 
 export default router;
