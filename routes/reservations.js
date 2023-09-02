@@ -191,48 +191,72 @@ router.delete("/:reservationId", async (req, res) => {
   }
 });
 
-// Dohvat slobodnih soba u određenom razdoblju
+// Funkcija za provjeru dostupnosti soba
+async function checkRoomAvailability(checkin, checkout, roomType) {
+  const db = await connect("HRM");
+  const reservationCollection = db.collection("Reservations");
+  const roomsCollection = db.collection("Rooms");
+
+  const checkinDate = moment(checkin);
+  const checkoutDate = moment(checkout);
+
+  const reservations = await reservationCollection.find({
+    $or: [
+      {
+        $and: [
+          { check_in: { $lt: checkinDate.toDate() } },
+          { check_out: { $gt: checkinDate.toDate() } },
+        ],
+      },
+      {
+        $and: [
+          { check_in: { $lt: checkoutDate.toDate() } },
+          { check_out: { $gt: checkoutDate.toDate() } },
+        ],
+      },
+    ],
+    ...(roomType ? { "room_id.$id": new ObjectId(roomType) } : {}),
+  });
+
+  const reservedRoomIds = reservations.map((reservation) =>
+    reservation.room_id.oid.toString()
+  );
+
+  const availableRooms = await roomsCollection
+    .find({
+      ...(roomType ? { _id: new ObjectId(roomType) } : {}),
+      _id: { $nin: reservedRoomIds },
+    })
+    .toArray();
+
+  return availableRooms.length > 0;
+}
+
+// Nova ruta za provjeru dostupnosti soba
 router.get("/available-rooms", async (req, res) => {
   try {
     const { checkin, checkout, room_type } = req.query;
 
-    const db = await connect("HRM");
-    const reservationCollection = db.collection("Reservations");
-    const roomsCollection = db.collection("Rooms");
-
-    const checkinDate = moment(checkin);
-    const checkoutDate = moment(checkout);
-
-    const reservations = await reservationCollection.find({
-      $or: [
-        {
-          $and: [
-            { check_in: { $lt: checkinDate.toDate() } },
-            { check_out: { $gt: checkinDate.toDate() } },
-          ],
-        },
-        {
-          $and: [
-            { check_in: { $lt: checkoutDate.toDate() } },
-            { check_out: { $gt: checkoutDate.toDate() } },
-          ],
-        },
-      ],
-      ...(room_type ? { "room_id.$id": new ObjectId(room_type) } : {}),
-    });
-
-    const reservedRoomIds = reservations.map((reservation) =>
-      reservation.room_id.oid.toString()
+    const isAvailable = await checkRoomAvailability(
+      checkin,
+      checkout,
+      room_type
     );
 
-    const availableRooms = await roomsCollection
-      .find({
-        ...(room_type ? { _id: new ObjectId(room_type) } : {}),
-        _id: { $nin: reservedRoomIds },
-      })
-      .toArray();
+    const rooms = await roomsCollection.find({}).toArray();
 
-    res.json(availableRooms);
+    const roomStatus = {};
+
+    // Iterirajte kroz sve sobe i postavite status za svaku sobu
+    rooms.forEach((room) => {
+      const roomId = room._id.toString();
+      roomStatus[roomId] = isAvailable ? "Available" : "Reserved";
+    });
+
+    res.json({
+      message: isAvailable ? "Success" : "Sorry, we are full",
+      roomStatus,
+    });
   } catch (error) {
     console.error("Error while fetching available rooms:", error);
     res.status(500).json({ message: "An error occurred" });

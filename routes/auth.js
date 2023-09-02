@@ -96,9 +96,4 @@ router.post("/login", async (req, res) => {
   }
 });
 
-// Primijeni middleware na rutu za welcomepage
-router.get("/welcomepage", authMiddleware, (req, res) => {
-  res.json({ message: "Welcome to the welcomepage" });
-});
-
 export default router;
