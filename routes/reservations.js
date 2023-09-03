@@ -7,6 +7,160 @@ import moment from "moment";
 
 const router = express.Router();
 
+router.get("/all-rooms", async (req, res) => {
+  try {
+    // Query the database to get all rooms
+    const db = await connect("HRM");
+    const roomsCollection = db.collection("Rooms");
+
+    const pipeline = [
+      {
+        $lookup: {
+          from: "Room-type",
+          localField: "room_type.$id",
+          foreignField: "_id",
+          as: "type_details",
+        },
+      },
+      {
+        $unwind: "$type_details",
+      },
+      {
+        $project: {
+          _id: 1,
+          room_number: 1,
+          room_type: "$type_details.name",
+          room_price: "$type_details.price_euro",
+        },
+      },
+    ];
+
+    const allRooms = await roomsCollection.aggregate(pipeline).toArray();
+
+    // Query the reservations collection to get reservations that overlap with the current date
+    const reservationsCollection = db.collection("Reservations");
+    const currentDate = moment().format("YYYY-MM-DD");
+
+    const activeReservations = await reservationsCollection
+      .find({
+        check_in: { $lte: currentDate },
+        check_out: { $gte: currentDate },
+      })
+      .toArray();
+
+    // Create a map to track occupied room IDs
+    const occupiedRoomMap = {};
+    activeReservations.forEach((reservation) => {
+      const room_id = reservation.room_id.oid.toString();
+      occupiedRoomMap[room_id] = true;
+    });
+
+    // Add the `isOccupied` attribute to each room based on occupancy status
+    const roomsWithOccupancy = allRooms.map((room) => ({
+      ...room,
+      isOccupied: occupiedRoomMap[room._id.toString()] ? true : false,
+    }));
+
+    const sortedRooms = roomsWithOccupancy.sort(
+      (a, b) => a.room_number - b.room_number
+    );
+
+    res.json({ roomsWithOccupancy: sortedRooms });
+  } catch (error) {
+    console.error("Error fetching rooms with occupancy status:", error);
+    res.status(500).json({ message: "An error occurred" });
+  }
+});
+
+// Define a route to get available rooms
+router.get("/available-rooms", async (req, res) => {
+  try {
+    const { checkin, checkout } = req.query;
+
+    // Parse checkin and checkout dates using Moment.js
+    const checkinDate = moment(checkin, "YYYY-MM-DD");
+    const checkoutDate = moment(checkout, "YYYY-MM-DD");
+
+    // Query the database to find available rooms during the specified dates
+    const db = await connect("HRM");
+    const reservationsCollection = db.collection("Reservations");
+
+    const availableRooms = await reservationsCollection
+      .aggregate([
+        // {
+        //   $match: {
+        //     $nor: [
+        //       {
+        //         $and: [
+        //           { check_in: { $lte: checkoutDate.toDate() } },
+        //           { check_out: { $gte: checkinDate.toDate() } },
+        //         ],
+        //       },
+        //     ],
+        //   },
+        // },
+        {
+          $lookup: {
+            from: "Rooms",
+            localField: "room_id.$id",
+            foreignField: "_id",
+            as: "room",
+          },
+        },
+        {
+          $unwind: "$room",
+        },
+        {
+          $project: {
+            _id: "$room._id",
+            room_number: "$room.room_number",
+            room_type: "$room.room_type",
+          },
+        },
+      ])
+      .toArray();
+
+    res.json({ availableRooms });
+  } catch (error) {
+    console.error("Error fetching available rooms:", error);
+    res.status(500).json({ message: "An error occurred" });
+  }
+});
+
+// // Nova ruta za provjeru dostupnosti soba
+// router.get("/available-rooms", async (req, res) => {
+//   try {
+//     const { checkin, checkout, room_type } = req.query;
+
+//     const isAvailable = await checkRoomAvailability(
+//       checkin,
+//       checkout,
+//       room_type
+//     );
+
+//     const db = await connect("HRM");
+//     const roomsCollection = db.collection("Rooms");
+
+//     const rooms = await roomsCollection.find().toArray();
+
+//     const roomStatus = {};
+
+//     // Iterirajte kroz sve sobe i postavite status za svaku sobu
+//     rooms.forEach((room) => {
+//       const roomId = room._id.toString();
+//       roomStatus[roomId] = true ? "Available" : "Reserved";
+//     });
+
+//     res.json({
+//       message: true ? "Success" : "Sorry, we are full",
+//       roomStatus,
+//     });
+//   } catch (error) {
+//     console.error("Error while fetching available rooms:", error);
+//     res.status(500).json({ message: "An error occurred" });
+//   }
+// });
+
 router.post("/", async (req, res) => {
   try {
     const {
@@ -134,12 +288,12 @@ router.put("/:reservationId", async (req, res) => {
 router.get("/:reservationId", async (req, res) => {
   try {
     const { reservationId } = req.params;
-
+    console.log(reservationId);
     const db = await connect("HRM");
     const reservationCollection = db.collection("Reservations");
 
     const reservation = await reservationCollection.findOne({
-      _id: new ObjectId(reservationId),
+      _id: ObjectId(reservationId),
     });
 
     if (!reservation) {
@@ -195,72 +349,54 @@ router.delete("/:reservationId", async (req, res) => {
 async function checkRoomAvailability(checkin, checkout, roomType) {
   const db = await connect("HRM");
   const reservationCollection = db.collection("Reservations");
-  const roomsCollection = db.collection("Rooms");
+  //const roomsCollection = db.collection("Rooms");
+  console.log("feiasfeiufhiauehf");
 
   const checkinDate = moment(checkin);
   const checkoutDate = moment(checkout);
-
-  const reservations = await reservationCollection.find({
-    $or: [
-      {
-        $and: [
-          { check_in: { $lt: checkinDate.toDate() } },
-          { check_out: { $gt: checkinDate.toDate() } },
-        ],
-      },
-      {
-        $and: [
-          { check_in: { $lt: checkoutDate.toDate() } },
-          { check_out: { $gt: checkoutDate.toDate() } },
-        ],
-      },
-    ],
-    ...(roomType ? { "room_id.$id": new ObjectId(roomType) } : {}),
-  });
-
-  const reservedRoomIds = reservations.map((reservation) =>
-    reservation.room_id.oid.toString()
-  );
-
-  const availableRooms = await roomsCollection
+  const reservations = await reservationCollection
     .find({
-      ...(roomType ? { _id: new ObjectId(roomType) } : {}),
-      _id: { $nin: reservedRoomIds },
+      // $or: [
+      //   {
+      //     $and: [
+      //       { check_in: { $lt: checkinDate.toDate() } },
+      //       { check_out: { $gt: checkinDate.toDate() } },
+      //     ],
+      //   },
+      //   {
+      //     $and: [
+      //       { check_in: { $lt: checkoutDate.toDate() } },
+      //       { check_out: { $gt: checkoutDate.toDate() } },
+      //     ],
+      //   },
+      // ],
+      $nor: [
+        {
+          $and: [
+            { checkin: { $lte: checkoutDate.toDate() } },
+            { checkout: { $gte: checkinDate.toDate() } },
+          ],
+        },
+      ],
+      //...(roomType ? { "room_id.$id": new ObjectId(roomType) } : {}),
     })
     .toArray();
 
-  return availableRooms.length > 0;
+  const reservedRoomIds = reservations.map(
+    (reservation) => reservation.room_id._id
+  );
+
+  console.log(reservedRoomIds);
+  return reservedRoomIds;
+
+  // const availableRooms = await roomsCollection
+  //   .find({
+  //     ...(roomType ? { _id: new ObjectId(roomType) } : {}),
+  //     _id: { $nin: reservedRoomIds },
+  //   })
+  //   .toArray();
+
+  //return availableRooms.length > 0;
 }
-
-// Nova ruta za provjeru dostupnosti soba
-router.get("/available-rooms", async (req, res) => {
-  try {
-    const { checkin, checkout, room_type } = req.query;
-
-    const isAvailable = await checkRoomAvailability(
-      checkin,
-      checkout,
-      room_type
-    );
-
-    const rooms = await roomsCollection.find({}).toArray();
-
-    const roomStatus = {};
-
-    // Iterirajte kroz sve sobe i postavite status za svaku sobu
-    rooms.forEach((room) => {
-      const roomId = room._id.toString();
-      roomStatus[roomId] = isAvailable ? "Available" : "Reserved";
-    });
-
-    res.json({
-      message: isAvailable ? "Success" : "Sorry, we are full",
-      roomStatus,
-    });
-  } catch (error) {
-    console.error("Error while fetching available rooms:", error);
-    res.status(500).json({ message: "An error occurred" });
-  }
-});
 
 export default router;
