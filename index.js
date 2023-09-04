@@ -22,8 +22,6 @@ app.get("/", async (req, res) => {
   res.json({ test: "radi" });
 });
 
-const PORT = process.env.PORT;
-
 app.listen(port, () => {
   console.log(`Listening on port ${port}`);
 });
