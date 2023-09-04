@@ -1,5 +1,4 @@
 import express from "express";
-import mongoose from "mongoose";
 import connect from "../db.js";
 import moment from "moment";
 
@@ -46,8 +45,8 @@ router.get("/:roomNumber", async (req, res) => {
           fullName: "$user.fullName",
           phoneNumber: "$user.phoneNumber",
           email: "$user.email",
-          adults: 1, // Include adults field
-          kids: 1, // Include kids field
+          adults: 1,
+          kids: 1,
           checkInDate: "$check_in",
           checkOutDate: "$check_out",
           typeOfPayment: "$method_of_payment_id",

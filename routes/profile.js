@@ -1,15 +1,15 @@
 import express from "express";
 const router = express.Router();
-import connect from "../db.js"; // Uvoz funkcije za povezivanje s bazom
+import connect from "../db.js";
 
 // Nova ruta za dohvaćanje korisničkih podataka na temelju email adrese
 router.get("/:email", async (req, res) => {
   try {
-    const db = await connect("HRM"); // Povežite se s bazom
-    const usersCollection = db.collection("users"); // Odaberite kolekciju "users"
+    const db = await connect("HRM");
+    const usersCollection = db.collection("users");
 
     const user = await usersCollection.findOne({
-      email: req.params.email, // Dohvatite korisnika na temelju email adrese
+      email: req.params.email,
     });
 
     if (!user) {

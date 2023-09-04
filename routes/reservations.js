@@ -87,18 +87,6 @@ router.get("/available-rooms", async (req, res) => {
 
     const availableRooms = await reservationsCollection
       .aggregate([
-        // {
-        //   $match: {
-        //     $nor: [
-        //       {
-        //         $and: [
-        //           { check_in: { $lte: checkoutDate.toDate() } },
-        //           { check_out: { $gte: checkinDate.toDate() } },
-        //         ],
-        //       },
-        //     ],
-        //   },
-        // },
         {
           $lookup: {
             from: "Rooms",
@@ -126,40 +114,6 @@ router.get("/available-rooms", async (req, res) => {
     res.status(500).json({ message: "An error occurred" });
   }
 });
-
-// // Nova ruta za provjeru dostupnosti soba
-// router.get("/available-rooms", async (req, res) => {
-//   try {
-//     const { checkin, checkout, room_type } = req.query;
-
-//     const isAvailable = await checkRoomAvailability(
-//       checkin,
-//       checkout,
-//       room_type
-//     );
-
-//     const db = await connect("HRM");
-//     const roomsCollection = db.collection("Rooms");
-
-//     const rooms = await roomsCollection.find().toArray();
-
-//     const roomStatus = {};
-
-//     // Iterirajte kroz sve sobe i postavite status za svaku sobu
-//     rooms.forEach((room) => {
-//       const roomId = room._id.toString();
-//       roomStatus[roomId] = true ? "Available" : "Reserved";
-//     });
-
-//     res.json({
-//       message: true ? "Success" : "Sorry, we are full",
-//       roomStatus,
-//     });
-//   } catch (error) {
-//     console.error("Error while fetching available rooms:", error);
-//     res.status(500).json({ message: "An error occurred" });
-//   }
-// });
 
 router.post("/", async (req, res) => {
   try {
@@ -349,27 +303,12 @@ router.delete("/:reservationId", async (req, res) => {
 async function checkRoomAvailability(checkin, checkout, roomType) {
   const db = await connect("HRM");
   const reservationCollection = db.collection("Reservations");
-  //const roomsCollection = db.collection("Rooms");
   console.log("feiasfeiufhiauehf");
 
   const checkinDate = moment(checkin);
   const checkoutDate = moment(checkout);
   const reservations = await reservationCollection
     .find({
-      // $or: [
-      //   {
-      //     $and: [
-      //       { check_in: { $lt: checkinDate.toDate() } },
-      //       { check_out: { $gt: checkinDate.toDate() } },
-      //     ],
-      //   },
-      //   {
-      //     $and: [
-      //       { check_in: { $lt: checkoutDate.toDate() } },
-      //       { check_out: { $gt: checkoutDate.toDate() } },
-      //     ],
-      //   },
-      // ],
       $nor: [
         {
           $and: [
@@ -378,7 +317,6 @@ async function checkRoomAvailability(checkin, checkout, roomType) {
           ],
         },
       ],
-      //...(roomType ? { "room_id.$id": new ObjectId(roomType) } : {}),
     })
     .toArray();
 
@@ -388,15 +326,6 @@ async function checkRoomAvailability(checkin, checkout, roomType) {
 
   console.log(reservedRoomIds);
   return reservedRoomIds;
-
-  // const availableRooms = await roomsCollection
-  //   .find({
-  //     ...(roomType ? { _id: new ObjectId(roomType) } : {}),
-  //     _id: { $nin: reservedRoomIds },
-  //   })
-  //   .toArray();
-
-  //return availableRooms.length > 0;
 }
 
 export default router;
